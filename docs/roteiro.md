@@ -1,145 +1,124 @@
-# Roteiro — Blocos 0 a 3
+# Roteiro
 
 **Projeto:** Gravidez na Adolescência em Porto Alegre: uma Análise Temporal e Territorial
-**Grupo:** Pedro Evaldt (líder) · Alexandre Raczinoski · Bruno Delgiovo
+**Execução:** Pedro Evaldt, com revisão do Claude Code
 
-Marque `[x]` em cada tarefa concluída. As decisões do projeto estão em `docs/decisoes.md`, e o que se sabe de cada arquivo está em `docs/dados.md`.
+Marque `[x]` ao concluir cada etapa. As decisões do projeto estão em `docs/decisoes.md`, e o que se sabe de cada arquivo está em `docs/dados.md`.
 
-## Dependências
+## Como trabalhamos
 
-```
-0 (validação) ──→ 2 (modelagem) ──→ 3.1–3.2 (território, domínios) ──→ 3.3–3.6 (fontes) ──→ 3.7 (checagens)
-1 (ambiente) ──────────────────────↗
-```
+Uma etapa por vez, sempre neste ciclo:
 
-Os blocos 0 e 1 rodam em paralelo. No Bloco 3, os passos 3.3 a 3.6 são independentes entre si, e é ali que a divisão por pessoa rende mais.
+1. **Pedro** escreve o código da etapa.
+2. **Claude** revisa e roda: corretude, convenções do projeto, idempotência e funcionamento em qualquer sistema. Aponta os problemas com perguntas, em vez de reescrever o código.
+3. **Claude** monta os testes, quando a etapa pede.
+4. **Claude** registra em `docs/` o que a etapa descobriu ou decidiu.
+5. A caixa é marcada e as mudanças são commitadas.
 
----
+Regras para todo script:
+- ler de `data/raw` e nunca alterar o dado bruto;
+- rodar de novo do zero com o mesmo resultado;
+- montar os caminhos com `pathlib`.
 
-## Bloco 0 — Validação dos dados
+## Situação atual
 
-Objetivo: descobrir o que cada fonte realmente entrega antes de desenhar o modelo. Os scripts de exploração ficam em `etl/validacao/`, e cada arquivo baixado ganha uma linha em `docs/FONTES.md` (fonte, URL, arquivo, data do download, observações).
-
-### SINASC → `data/raw/sinasc/`
-
-**Onde buscar:** FTP do DATASUS, em `ftp.datasus.gov.br/dissemin/publicos/SINASC/1996_/Dados/DNRES/`. Os arquivos seguem o padrão `DNRS{ano}.dbc`. O download direto é feito por `etl/validacao/baixar_sinasc.py`, com `ftplib`.
-
-O PySUS 2.x não serve para isso: a API antiga (`SINASC().load()`) não existe mais, e o catálogo dele só tem o RS até 2022.
-
-**Como ler:** `.dbc` é um DBF compactado. O `pyreaddbc.dbc2dbf` descompacta para `.dbf` em `data/processed/`, e o `dbfread` lê o `.dbf`.
-
-- [x] 0.1 Baixar o RS de 2017 e de 2024 (no ETL, o período inteiro)
-- [x] 0.2 Filtrar mães residentes em Porto Alegre (`CODMUNRES == '431490'`)
-- [x] 0.3 Conferir o volume: cerca de 13–14 mil nascimentos por ano
-- [x] 0.4 Examinar o `CODBAIRES`: % preenchido por ano, nº de códigos distintos e formato
-  - **2026-10-17:** a coluna **não existe** nos arquivos públicos de 2017 a 2024, que não têm nenhum campo de endereço. Ver "Fonte do bairro de residência" em `decisoes.md`.
-- [ ] 0.5 Obter a **tabela que traduz código → nome de bairro**, que tende a ser municipal (depende da fonte do bairro)
-- [x] 0.6 Medir a completude de `IDADEMAE`, `ESCMAE2010`, `CONSULTAS`, `CONSPRENAT`, `PESO`, `SEMAGESTAC` e `RACACORMAE`
-- [x] 0.7 Confirmar se 2024 é definitivo. Se no FTP ele só aparecer na pasta de preliminares (`PRELIM`), ainda é preliminar.
-
-### Censo 2022 → `data/raw/ibge_censo2022/`
-
-**Onde buscar:** FTP do IBGE, em `ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/`.
-
-- [ ] 0.8 Baixar o dicionário de dados (`.xlsx` na raiz da pasta)
-- [ ] 0.9 Baixar os CSVs de `Agregados_por_Bairro_csv/` e de `Agregados_por_Setor_csv/` e filtrar Porto Alegre
-- [ ] 0.10 Ver quais variáveis existem: população por idade e sexo (mulheres de 15–19), alfabetização e escolaridade, renda, favelas
-- [ ] 0.11 **Comparar os bairros do `Agregados_por_Bairro` com os 94 bairros oficiais.** Se baterem, os indicadores do Censo entram direto por bairro, a mediana de renda vem pronta e a tabela `setor_censitario` pode sair do modelo.
-
-### ObservaPOA e mapas → `data/raw/observapoa/`
-
-**Onde buscar:** página de mapas do ObservaPOA (`prefeitura.poa.br/smpae/observapoa/mapas`). Os shapefiles estão hospedados no Google Drive.
-
-- [ ] 0.12 Baixar o shapefile dos **bairros oficiais** → `bairros_oficiais/`
-- [ ] 0.13 Baixar o shapefile das **regiões do OP** → `regioes_op/`
-- [ ] 0.14 Baixar o shapefile dos **setores censitários 2022** (versão final) → `setores_2022/`
-- [ ] 0.15 Baixar a **população por bairro do Censo 2022** (CSV)
-- [ ] 0.16 Procurar no site a **renda por bairro** e de que ano ela é
-- [ ] 0.17 Descobrir **em qual região do OP fica cada bairro**: pela tabela, se existir, ou cruzando os dois shapefiles no PostGIS
-
-### CNES → `data/raw/cnes/`
-
-**Onde buscar:** a base completa da área de downloads do site do CNES costuma trazer bairro, CEP e coordenadas. Como alternativa, o PySUS no grupo `ST` (arquivos mensais, por exemplo `STRS2412`), que traz CEP mas, até onde se sabe, não coordenadas.
-
-- [ ] 0.18 Baixar os estabelecimentos de Porto Alegre e ver se trazem bairro, CEP ou latitude/longitude
-
-### Decisão
-
-- [ ] 0.19 Escrever `docs/validacao.md`: o que cada fonte entrega, completude e problemas encontrados
-- [ ] 0.20 Fixar o período (primeiro ano com códigos novos de bairro e último ano consolidado)
-- [ ] 0.21 Decidir sobre o bairro. **Se o SINASC público não servir, enviar o pedido à SMS via GAT05 imediatamente.**
-
-**Pronto quando:** o `validacao.md` existe, e o período e a decisão do bairro estão fechados.
+Os arquivos públicos do SINASC não têm bairro. O pedido à SMS foi enviado pelo GAT05 em 2026-10-17. Até a resposta chegar, os nascimentos entram como "Não informado", e o resto do trabalho segue normalmente. As etapas que dependem da resposta estão na Fase 8.
 
 ---
 
-## Bloco 1 — Ambiente
+## Fase 0 — Exploração inicial do SINASC
 
-Roda em paralelo ao Bloco 0.
+- [x] 0. Baixar o RS de 2017 a 2024, filtrar Porto Alegre, conferir volume e completude, confirmar que 2024 é definitivo e examinar o `CODBAIRES`. Resultado: a coluna não existe nos arquivos públicos. Detalhes em `dados.md`.
 
-- [ ] 1.1 Criar o repositório no GitHub com README e `.gitignore`. Ficam de fora `data/`, `.env` e `.venv/`.
-- [ ] 1.2 Criar a estrutura de pastas: `data/raw`, `data/processed`, `etl/validacao`, `sql/ddl`, `sql/views`, `docs/`
-- [ ] 1.3 Escrever o `docker-compose.yml`:
-  - imagem `postgis/postgis`;
-  - volume de dados;
-  - `sql/ddl` montado em `/docker-entrypoint-initdb.d`;
-  - senha lida do `.env`.
-- [ ] 1.4 Criar o `.env.example` versionado
-- [ ] 1.5 Criar o projeto com uv: pandas, geopandas, pysus e um driver de Postgres
-- [ ] 1.6 Criar os comandos: subir o banco, rodar o ETL e resetar tudo. Precisam rodar em Python; o Makefile é opcional.
-- [ ] 1.7 Testar nas três máquinas, inclusive no Windows com Docker Desktop
-- [ ] 1.8 Preencher a seção "Comandos" do `CLAUDE.md`
+## Fase 1 — Arrumação e ambiente
 
-**Pronto quando:** qualquer integrante clona o repositório e, com dois comandos, tem o banco no ar.
+- [ ] 1. **Dependências e `.gitignore`**
+  - declarar no `pyproject.toml` o que os scripts usam (`pandas`, `dbfread`, `pyreaddbc`), e o `pytest` como dependência de desenvolvimento;
+  - apagar o `main.py` gerado pelo `uv init`;
+  - acrescentar `.venv/` ao `.gitignore` e conferir se `claude/` devia ser `.claude/`;
+  - commitar a mudança dos PDFs para `docs/apresentacao/`.
+  - **Pronto quando:** `uv sync` instala tudo, e o `git status` está limpo.
+- [ ] 2. **Corrigir o `baixar_sinasc.py`**
+  - criar a pasta de destino certa: hoje o script cria `data/raw`, e não `data/raw/sinasc`;
+  - não deixar arquivo pela metade quando o download cair;
+  - só baixar dentro de `if __name__ == "__main__":`.
+  - **Pronto quando:** baixar para uma pasta vazia gera os 8 arquivos com os mesmos hashes de `FONTES.md`.
+- [ ] 3. **Docker Compose**
+  - `docker-compose.yml` com a imagem `postgis/postgis` em versão fixa, um volume nomeado, `sql/ddl` montado em `/docker-entrypoint-initdb.d` e a senha lida do `.env`;
+  - `.env.example` versionado e `.env` local.
+  - **Pronto quando:** `docker compose up -d` sobe o banco, e `SELECT postgis_full_version();` responde.
+- [ ] 4. **Conexão do Python com o banco**
+  - escolher o driver. Sugestão: `psycopg` 3 com SQLAlchemy e GeoAlchemy2, que o geopandas usa para gravar geometria;
+  - criar um módulo em `etl/` com uma função que lê o `.env` e devolve a conexão.
+  - **Pronto quando:** um teste marcado `banco` conecta e roda `SELECT 1`.
 
----
+## Fase 2 — Território
 
-## Bloco 2 — Modelagem
+Os mapas ficam na página do ObservaPOA (`prefeitura.poa.br/smpae/observapoa/mapas`), com os shapefiles hospedados no Google Drive. O download é manual, e cada arquivo vai para `FONTES.md`.
 
-Depende do `validacao.md`.
+- [ ] 5. **Bairros oficiais:** baixar o shapefile para `data/raw/observapoa/bairros_oficiais/` e explorar com geopandas: número de polígonos (o esperado é 94), colunas, sistema de coordenadas e nomes.
+- [ ] 6. **Regiões do OP:** baixar para `data/raw/observapoa/regioes_op/` e explorar (o esperado é 17).
+- [ ] 7. **Bairro → região:** descobrir a região de cada bairro, por uma tabela se existir ou por junção espacial. Conferir se algum bairro cai em mais de uma região.
+- [ ] 8. **Normalização de nomes:** escrever uma função que normaliza nomes de bairro (acentos, maiúsculas, espaços), num módulo reaproveitável de `etl/`. Vai ser a primeira função com testes.
 
-- [ ] 2.1 Listar entidades e atributos a partir da validação. Núcleo previsto:
-  - **Território:** `regiao_op` ← `bairro` (← `setor_censitario`, se a tarefa 0.11 não o eliminar), com geometria
-  - **Fato:** `nascimento`, com FK para `bairro`. A mãe não é entidade.
-  - **Domínios:** `escolaridade`, `raca_cor`, `tipo_parto`, `faixa_consultas` etc., que traduzem os códigos do SINASC
-  - **Indicadores:** uma tabela por fonte, no nível natural de cada uma
-- [ ] 2.2 Montar o DER conceitual
-- [ ] 2.3 Montar o modelo lógico em 3FN, com chaves, FKs e índices. O índice principal é `nascimento(id_bairro, ano)`.
-- [ ] 2.4 Escrever o DDL em `sql/ddl`, em arquivos numerados
-- [ ] 2.5 Revisar em grupo antes de iniciar o ETL
+## Fase 3 — Censo 2022 e ObservaPOA
 
-**Pronto quando:** o DER e o modelo lógico estão prontos como figuras para o artigo, e o DDL sobe limpo no container.
+O Censo fica em `ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/`.
 
----
+- [ ] 9. **Baixar por script** o dicionário (o `.xlsx` na raiz da pasta) e os CSVs de `Agregados_por_Bairro_csv/`, para `data/raw/ibge_censo2022/`.
+- [ ] 10. **Explorar os agregados por bairro de Porto Alegre:** quais variáveis existem (mulheres de 15–19, alfabetização e escolaridade, renda, favelas) e como vêm os valores suprimidos por sigilo.
+- [ ] 11. **Comparar os bairros do Censo com os 94 oficiais**, usando a função da etapa 8. Se baterem, a tabela `setor_censitario` sai do modelo.
+- [ ] 12. **Só se a etapa 11 não fechar:** baixar os setores de 2022 (shapefile do ObservaPOA e `Agregados_por_Setor_csv/`) e planejar a agregação por bairro.
+- [ ] 13. **ObservaPOA:** baixar a população por bairro do Censo 2022 e procurar a renda por bairro, verificando de que ano ela é. Casar os nomes com os bairros oficiais.
 
-## Bloco 3 — ETL
+## Fase 4 — Fechamento da validação
 
-Depende do DDL. Regras para todo script:
+- [ ] 14. **Dicionário do SINASC:**
+  - obter o dicionário oficial;
+  - confirmar os códigos de `ESCMAE2010`, `CONSULTAS`, `RACACORMAE` e `PARTO`, e o que o 9 significa em cada um;
+  - medir a completude de `PARTO`, `SERIESCMAE` e `DTNASCMAE`;
+  - olhar os valores extremos de `PESO` e `CONSPRENAT`.
+- [ ] 15. **`validacao.md` e período:** o Claude redige o `validacao.md` e o Pedro revisa. O período fica fixado em `decisoes.md`.
 
-- ler de `data/raw`;
-- nunca alterar o dado bruto;
-- poder rodar de novo do zero com o mesmo resultado;
-- registrar cada decisão em `docs/tratamento.md`.
+## Fase 5 — Modelagem
 
-- [ ] 3.1 **Território:** regiões; bairros com contorno e região; setores, se ficarem no modelo; registro "Não informado"
-- [ ] 3.2 **Tabelas de domínio:** códigos do dicionário do SINASC
-- [ ] 3.3 **SINASC (período inteiro):**
-  - ler cada ano, filtrar Porto Alegre e selecionar as colunas;
-  - tratar o código 9 (ignorado) como ausente, conferindo com o dicionário;
-  - validar os códigos contra as tabelas de domínio;
-  - derivar o ano, a faixa etária (10–14, 15–19, 20–34, 35+) e o atraso escolar;
-  - traduzir o código de bairro para `id_bairro`, ou "Não informado";
-  - carregar.
-- [ ] 3.4 **Censo 2022:** filtrar Porto Alegre e converter os números. Valores suprimidos por sigilo (geralmente "X") viram `NULL`, não zero.
-- [ ] 3.5 **ObservaPOA:** casar os nomes dos bairros com a tabela `bairro`, normalizando acentos, maiúsculas e espaços
-- [ ] 3.6 **CNES:** associar cada estabelecimento a um bairro, pelo nome ou por junção espacial no PostGIS
-- [ ] 3.7 **Checagens de qualidade:**
-  - total de nascidos vivos por ano contra o TabNet e o boletim da SMS (referência: 14.149 em 2021);
-  - nascimentos sem bairro por ano;
+- [ ] 16. Listar entidades e atributos: o Pedro propõe e o Claude questiona.
+- [ ] 17. Montar o DER conceitual, como figura para o artigo.
+- [ ] 18. Montar o modelo lógico em 3FN, com chaves, FKs e índices.
+- [ ] 19. Escrever `sql/ddl/01_territorio.sql` e ver o esquema subir limpo no container.
+- [ ] 20. Escrever `sql/ddl/02_dominios.sql`.
+- [ ] 21. Escrever `sql/ddl/03_nascimento.sql`, com a FK para `bairro` e o registro "Não informado".
+- [ ] 22. Escrever `sql/ddl/04_indicadores.sql`, para o Censo e o ObservaPOA.
+
+## Fase 6 — ETL
+
+- [ ] 23. Carregar o território: regiões, bairros com geometria e o registro "Não informado".
+- [ ] 24. Carregar os domínios.
+- [ ] 25. SINASC: escrever as funções de transformação (código 9 → ausente, faixa etária, atraso escolar).
+- [ ] 26. SINASC: carregar 2017–2024, com todos os nascimentos em "Não informado" até a resposta da SMS.
+- [ ] 27. Censo: carregar por bairro, com os valores suprimidos ("X") virando `NULL`.
+- [ ] 28. ObservaPOA: carregar os indicadores por bairro.
+- [ ] 29. Criar um comando único, em Python, que reconstrói o banco do zero.
+- [ ] 30. **Checagens de qualidade:**
+  - total por ano contra a referência (14.149 em 2021);
   - nenhuma FK órfã;
-  - população do Censo por bairro próxima da população do ObservaPOA.
-- [ ] 3.8 Revisar o `docs/tratamento.md`, que vira a seção de tratamento de dados do artigo
+  - população do Censo próxima da do ObservaPOA em cada bairro.
 
-**Pronto quando:** um único comando reconstrói o banco inteiro do zero, e as checagens estão documentadas.
+## Fase 7 — Views que já funcionam sem o bairro
 
-**Prioridade se faltar tempo:** o CNES (3.6) é a fonte que pode ficar por último.
+- [ ] 31. View da proporção de nascidos vivos de mães de 10–19 anos, por ano, na cidade (2017–2024).
+- [ ] 32. View da taxa de fecundidade de 15–19 anos na cidade, no triênio 2021–2023.
+
+## Fase 8 — Quando chegar o dado da SMS
+
+Entra assim que a resposta chegar, mesmo que interrompa a ordem das fases.
+
+- [ ] 33. Explorar o arquivo recebido: formato, códigos de bairro e completude.
+- [ ] 34. Montar a tabela que traduz o código da SMS para o bairro oficial.
+- [ ] 35. Ligar os nascimentos aos bairros e refazer as checagens.
+- [ ] 36. Criar as views por região do OP (série temporal) e por bairro (triênio 2021–2023).
+
+## Fase 9 — Fechamento
+
+- [ ] 37. **CNES, se der tempo:** baixar os estabelecimentos de Porto Alegre e associar cada um a um bairro. Há duas fontes possíveis: a base completa do site do CNES, que costuma trazer bairro, CEP e coordenadas, e os arquivos mensais `STRS{aamm}` do PySUS.
+- [ ] 38. Revisar o `tratamento.md`, que vira a seção de tratamento de dados do artigo.

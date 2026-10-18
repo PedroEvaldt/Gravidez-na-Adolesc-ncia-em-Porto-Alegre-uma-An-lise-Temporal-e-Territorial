@@ -26,12 +26,12 @@ cd90645b1fc4e2fb55c5aea91dc18d65edff1d1ed937af8ba27530982b410b9d  DNRS2023.dbc
 
 ## Censo 2022 (IBGE)
 
-Ainda não baixado (tarefas 0.8–0.11).
+Ainda não baixado (etapas 9–12 do roteiro).
 
 ## ObservaPOA
 
-Ainda não baixado (tarefas 0.12–0.17).
+Ainda não baixado (etapas 5, 6, 12 e 13 do roteiro).
 
 ## CNES
 
-Ainda não baixado (tarefa 0.18).
+Ainda não baixado (etapa 37 do roteiro).
